@@ -1,3 +1,4 @@
+
 ;---------------------------------------------------------------------------------------------------------------
 ;		Structure de la VM
 ;---------------------------------------------------------------------------------------------------------------
@@ -402,16 +403,16 @@
 ;Chargeur
 
 (defun loader-vm (vm code)
-	
-	(setq LABELS (make-hash-table :size 0))
-	(setq FORWARDS (make-hash-table :size 0))
 
-	(let ((instr) (tmp code))
+	(let ((instr) (tmp code) (LABELS) (FORWARDS))
+
+		(setq LABELS (make-hash-table :size 0))
+		(setq FORWARDS (make-hash-table :size 0))
+
 		(loop while (not (equal tmp NIL) )  ;Mise en mémoire et résolution des adresses connues
 		do
-			(progn
-				(setq instr (car tmp) )
-							
+			(let (instr)
+				(setq instr (copy-list (car tmp))) ;copie la liste pour éviter les effets de bords
 				(if (equal (car instr) 'LABEL)
 				
 					(progn													;THEN
@@ -449,19 +450,20 @@
 				(setf tmp (cdr tmp))					
 			)		
 		)
-	)
 	
-	(maphash 
-		#'(lambda (key value)
-			(if (nth-value 1 (gethash value LABELS) )
-				(setf
-					(car (cdr (get-memory vm key) ) )
-					(gethash value LABELS)
+		(maphash 
+			#'(lambda (key value)
+				(if (nth-value 1 (gethash value LABELS) )
+					(setf
+						(car (cdr (get-memory vm key) ) )
+						(gethash value LABELS)
+					)
+					(error "Undefined Label : ~S" value )
 				)
-				(error "Undefined Label : ~S" value )
-			)
-		) 
-		FORWARDS	
+			) 
+			FORWARDS	
+		)
+
 	)
 
 	(get vm 'memory)	
@@ -719,9 +721,6 @@
 		(JSR fact)
 	)
 )
-
-
-(set 'code fiboNT)
 
 
 ;---------------------------------------------------------------------------------------------------------------
