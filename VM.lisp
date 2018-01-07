@@ -406,47 +406,47 @@
 	(setq LABELS (make-hash-table :size 0))
 	(setq FORWARDS (make-hash-table :size 0))
 
-	(let ((instr) (code code))
-		(loop while (not (equal code NIL) )  ;Mise en mémoire et résolution des adresses connues
+	(let ((instr) (tmp code))
+		(loop while (not (equal tmp NIL) )  ;Mise en mémoire et résolution des adresses connues
 		do
 			(progn
-				(setq instr (car code) )
+				(setq instr (car tmp) )
 							
-				(if (equal (car instr) 'label-vm)
+				(if (equal (car instr) 'LABEL)
 				
 					(progn													;THEN
-						(if (nth-value 1 (gethash  (car (cdr (cdr instr) ) ) LABELS) )
-							(error "Label already exist : ~S" (car (cdr (cdr instr) ) ))
-							(setf (gethash (car (cdr (cdr instr) ) ) LABELS) (get vm 'EOF) )
+						(if (nth-value 1 (gethash  (car (cdr instr)  ) LABELS) )
+							(error "Label already exist : ~S" (car (cdr instr) ))
+							(setf (gethash (car (cdr instr) ) LABELS) (get vm 'EOF) )
 						)
-						(if (equal (car (cdr (cdr instr ) ) ) 'MAIN)
+						(if (equal (car (cdr instr ) ) 'MAIN)
 							(move-vm vm 'EOF 'PC)
 						)
 					)
 					
 					(progn												  ;ELSE
 						(if (or
-								(equal (car instr) 'jmp-vm)
-								(equal (car instr) 'jlt-vm)
-								(equal (car instr) 'jeq-vm)
-								(equal (car instr) 'jgt-vm)
-								(equal (car instr) 'jle-vm)
-								(equal (car instr) 'jge-vm)
-								(equal (car instr) 'jne-vm)
-								(equal (car instr) 'jtrue-vm)
-								(equal (car instr) 'jnil-vm)
-								(equal (car instr) 'jsr-vm)						
+								(equal (car instr) 'JMP)
+								(equal (car instr) 'JLT)
+								(equal (car instr) 'JEQ)
+								(equal (car instr) 'JGT)
+								(equal (car instr) 'JLE)
+								(equal (car instr) 'JGE)
+								(equal (car instr) 'JNE)
+								(equal (car instr) 'JTRUE)
+								(equal (car instr) 'JNIL)
+								(equal (car instr) 'JSR)						
 							)
-							(if (nth-value 1 (gethash  (car (cdr (cdr instr) ) ) LABELS) )
-								(setf (car (cdr (cdr instr) ) ) (gethash  (car (cdr (cdr instr) ) ) LABELS) )
-								(setf (gethash (get vm 'EOF) FORWARDS) (car (cdr (cdr instr) ) ) ) 
+							(if (nth-value 1 (gethash  (car (cdr instr) ) LABELS) )
+								(setf (car (cdr instr) ) (gethash  (car (cdr instr) ) LABELS) )
+								(setf (gethash (get vm 'EOF) FORWARDS) (car (cdr instr) ) ) 
 							)
 						)					
 					)
 				)
 				(set-memory vm instr (get vm 'EOF))
 				(incr vm 'EOF)
-				(setf code (cdr code))					
+				(setf tmp (cdr tmp))					
 			)		
 		)
 	)
@@ -455,7 +455,7 @@
 		#'(lambda (key value)
 			(if (nth-value 1 (gethash value LABELS) )
 				(setf
-					(car (cdr (cdr (get-memory vm key) ) ) )
+					(car (cdr (get-memory vm key) ) )
 					(gethash value LABELS)
 				)
 				(error "Undefined Label : ~S" value )
@@ -500,6 +500,7 @@
 	do
 		(format t "~S : ~S~%" i (get-memory vm i))
 	)
+	(format t "---------------------~%(RUN VM)~%")
 )
 
 (defun eval-vm (vm instr &optional (show NIL))
@@ -508,48 +509,52 @@
 	)
 	(let ((call))
 		(case (car instr)
-			( ('MOVE) ( (setq call 'move-vm) ) )
-			( ('LOAD) ( (setq call 'load-vm) ) )
-			( ('STORE) ( (setq call 'store-vm) ) )
-			( ('PUSH) ( (setq call 'push-vm) ) )
-			( ('POP) ( (setq call 'pop-vm) ) )
-			( ('INCR) ( (setq call 'incr) ) )
-			( ('DECR) ( (setq call 'decr) ) )
-			( ('ADD) ( (setq call 'add) ) )
-			( ('SUB) ( (setq call 'sub) ) )
-			( ('MULT) ( (setq call 'mult) ) )
-			( ('DIV) ( (setq call 'div) ) )
-			( ('CMP) ( (setq call 'cmp) ) )
-			( ('TEST) ( (setq call 'test-vm) ) )
-			( ('JMP) ( (setq call 'jmp-vm) ) )
-			( ('JLT) ( (setq call 'jlt-vm) ) )
-			( ('JEQ) ( (setq call 'jeq-vm) ) )
-			( ('JGT) ( (setq call 'jgt-vm) ) )
-			( ('JLE) ( (setq call 'jle-vm) ) )
-			( ('JGE) ( (setq call 'jge-vm) ) )
-			( ('JNE) ( (setq call 'jne-vm) ) )
-			( ('JTRUE) ( (setq call 'jtrue-vm) ) )
-			( ('JNIL) ( (setq call 'jnil-vm) ) )
-			( ('JSR) ( (setq call 'jsr-vm) ) )
-			( ('RTN) ( (setq call 'rtn-vm) ) )
-			( ('LABEL) ( (setq call 'label-vm) ) )
-			( ('NOP) ( (setq call 'nop) ) )
-			( ('HALT) ( (setq call 'halt) ) )
-
+			( 'MOVE (setq call 'move-vm) )
+			( 'LOAD (setq call 'load-vm) )
+			( 'STORE (setq call 'store-vm) )
+			( 'PUSH (setq call 'push-vm) )
+			( 'POP (setq call 'pop-vm) )
+			( 'INCR (setq call 'incr) )
+			( 'DECR (setq call 'decr) )
+			( 'ADD (setq call 'add) )
+			( 'SUB (setq call 'sub) )
+			( 'MULT (setq call 'mult) )
+			( 'DIV (setq call 'div) )
+			( 'CMP (setq call 'cmp) )
+			( 'TEST (setq call 'test-vm) )
+			( 'JMP (setq call 'jmp-vm) )
+			( 'JLT (setq call 'jlt-vm) )
+			( 'JEQ (setq call 'jeq-vm) )
+			( 'JGT (setq call 'jgt-vm) )
+			( 'JLE (setq call 'jle-vm) )
+			( 'JGE (setq call 'jge-vm) )
+			( 'JNE (setq call 'jne-vm) )
+			( 'JTRUE (setq call 'jtrue-vm) )
+			( 'JNIL (setq call 'jnil-vm) )
+			( 'JSR (setq call 'jsr-vm) )
+			( 'RTN (setq call 'rtn-vm) )
+			( 'LABEL (setq call 'label-vm) )
+			( 'NOP (setq call 'nop) )
+			( 'HALT (setq call 'halt) )
+		)
+		
+		(if (equal call NIL)
+			(error "~S : Instruction inconnue" (car instr) )
+			(apply call (cons vm (cdr instr)))
 		)
 	)
-	(apply 
-		(car instr) 
-		(mapcar 
-			#'(lambda (x)
-				(if (listp x)
-				(eval-vm vm x)
-				x
-				)	
-			) 
-			(cdr instr)
-		)
-	)	
+	;(apply 
+		;(car instr) 
+		;(mapcar 
+			;#'(lambda (x)
+				;(if (listp x)
+				;(eval-vm vm x)
+				;x
+				;)	
+			;) 
+			;(cdr instr)
+		;)
+	;)	
 )
 
 (defun exec-vm (vm &optional (show NIL))
@@ -557,10 +562,7 @@
 		(error "no main function")
 		(progn
 			(if show
-				(progn
-					(show-instruction-list vm)
-					(format t "---------------------~%(RUN VM)~%")
-				)
+				(show-instruction-list vm)
 			)
 			(loop while (and (< (get vm 'PC) (get vm 'EOF)) (not (get vm 'halt) ) )  ;exécution du code en mémoire
 			do
@@ -580,119 +582,122 @@
 
 (setq ref 
 	'(
-		(label-vm vm MAIN) 
-		(move-vm vm 0 R0) 
-		(move-vm vm -1 R1) 
-		(cmp vm R0 R1) 
-		(jeq-vm vm TRUE) 
-		(jle-vm vm FALSE) 
-		(push-vm vm 1) 
-		(halt vm) 
-		(label-vm vm TRUE) 
-		(push-vm vm 0) 
-		(jmp-vm vm EOF) 
-		(label-vm vm FALSE) 
-		(push-vm vm -1) 
-		(label-vm vm EOF)
+		(LABEL MAIN) 
+		(MOVE 0 R0) 
+		(MOVE -1 R1) 
+		(CMP R0 R1) 
+		(JEQ TRUE) 
+		(JLE FALSE)
+		(MOVE 1 R2) 
+		(PUSH R2) 
+		(HALT) 
+		(LABEL TRUE) 
+		(MOVE 0 R2)
+		(PUSH R2) 
+		(JMP EOF) 
+		(LABEL FALSE)
+		(MOVE -1 R2) 
+		(PUSH R2) 
+		(LABEL EOF)
 	)
 )
 
 (setq fact
 	'(
-		(label-vm vm FACT)
+		(LABEL FACT)
 
-		(move-vm vm 1 R0)
-		(move-vm vm FP R1)
-		(decr vm R1)
-		(load-vm vm R1 R2)
+		(MOVE 1 R0)
+		(MOVE FP R1)
+		(DECR R1)
+		(LOAD R1 R2)
 
-		(label-vm vm BOUCLE)
-		(mult vm R2 R0)
-		(decr vm R2)
-		(cmp vm 1 R2)
-		(jlt-vm vm BOUCLE)
-		(rtn-vm vm)
+		(LABEL BOUCLE)
+		(MULT R2 R0)
+		(DECR R2)
+		(CMP 0 R2)
+		(JLT BOUCLE)
+		(RTN)
 
-		(label-vm vm MAIN)
+		(LABEL MAIN)
 
-		(move-vm vm 5 R0)
-		(push-vm vm R0)	;Push n1
-		(move-vm vm 1 R0)
-		(push-vm vm R0)	;Push nb param
+		(MOVE 5 R0)	;Push de l'argument de Factorielle
+		(PUSH R0)	;Push n1
+		(MOVE 1 R0)
+		(PUSH R0)	;Push nb param
 
-		(jsr-vm vm FACT)
+		(JSR FACT)
 
-		(label-vm vm EOF)
+		(LABEL EOF)
 	)
 )
 
 (setq fiboNT
 	'(
-		(label-vm vm FIBO)
+		(LABEL FIBO)
 
 		;Récupération de la valeure de n1
 
-		(move-vm vm FP R1)
-		(decr vm R1) ;Récupération de l'adresse de la variable locale n1 (FC-1)
-		(load-vm vm R1 R1) ;Récupération de la variable locale n1
+		(MOVE FP R1)
+		(DECR R1) ;Récupération de l'adresse de la variable locale n1 (FC-1)
+		(LOAD R1 R1) ;Récupération de la variable locale n1
 
 
 		;Conditions d'arrêt
 
 		;n=0
-		(move-vm vm 0 R0)
-		(cmp vm 0 R1)
-		(jeq-vm vm END_FIBO)
+		(MOVE 0 R0)
+		(CMP 0 R1)
+		(JEQ END_FIBO)
 
 		;n=1
-		(move-vm vm 1 R0)
-		(cmp vm 1 R1)
-		(jeq-vm vm END_FIBO)
+		(MOVE 1 R0)
+		(CMP 1 R1)
+		(JEQ END_FIBO)
 
 		;Appel Fibo(n-1)
 
-		(push-vm vm R1) ;Save du n actuel
+		(PUSH R1) ;Save du n actuel
 
-		(sub vm 1 R1) ;n-1
+		(SUB 1 R1) ;n-1
 		
-		(push-vm vm R1)	;Push n1
-		(move-vm vm 1 R1)
-		(push-vm vm R1)	;Push nb param
+		(PUSH R1)	;Push n1
+		(MOVE 1 R1)
+		(PUSH R1)	;Push nb param
 
-		(jsr-vm vm FIBO)
+		(JSR FIBO)
 
-		(pop-vm vm R1) ;Récupération du n
+		(POP R1) ;Récupération du n
 		
-		(push-vm vm R0) ;Save de Fibo(n-1)
+		(PUSH R0) ;Save de Fibo(n-1)
 
 		;Appel Fibo(n-2)
 
-		(sub vm 2 R1) ;n-2
+		(SUB 2 R1) ;n-2
 		
-		(push-vm vm R1)	;Push n1
-		(move-vm vm 1 R1)
-		(push-vm vm R1)	;Push nb param
+		(PUSH R1)	;Push n1
+		(MOVE 1 R1)
+		(PUSH R1)	;Push nb param
 
-		(jsr-vm vm FIBO)
+		(JSR FIBO)
 
-		(pop-vm vm R1)  ;Pop de Fibo(n-1) dans R1
+		(POP R1)  ;Pop de Fibo(n-1) dans R1
 
-		(add vm R1 R0) ; Fibo (n-1) + Fibo (n-2) dans R0
+		(ADD R1 R0) ; Fibo (n-1) + Fibo (n-2) dans R0
 
-		(label-vm vm END_FIBO)
+		(LABEL END_FIBO)
 
-		(rtn-vm vm)
+		(RTN)
 
-		(label-vm vm MAIN)
+		(LABEL MAIN)
 		
-		(move-vm vm 4 R0)
-		(push-vm vm R0)	;Push n1
-		(move-vm vm 1 R0)
-		(push-vm vm R0)	;Push nb param
+		(MOVE 6 R0)
+		(PUSH R0)	;Push n1
+		(MOVE 1 R0)
+		(PUSH R0)	;Push nb param
 
-		(jsr-vm vm FIBO)
+		(JSR FIBO)
 
-		(label-vm vm EOF)
+		(LABEL EOF)
 	)	
 
 )
@@ -706,12 +711,12 @@
 
 (setq testJSR 
 	'(
-		(label-vm vm MAIN)
-		(move-vm vm 5 R1)
-		(push-vm vm R1)
-		(move-vm vm 1 R1)
-		(push-vm vm R1)
-		(jsr-vm vm fact)
+		(LABEL MAIN)
+		(MOVE 5 R1)
+		(PUSH R1)
+		(MOVE 1 R1)
+		(PUSH R1)
+		(JSR fact)
 	)
 )
 
