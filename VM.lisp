@@ -1,4 +1,3 @@
-
 ;---------------------------------------------------------------------------------------------------------------
 ;		Structure de la VM
 ;---------------------------------------------------------------------------------------------------------------
@@ -13,11 +12,11 @@
 			
 			;Pile
 			;base pointer (base de la pile/invariant)
-			(setf (get name 'BP) -1)
+			(setf (get name 'BP) 0)
 			;mem-stack (haut de la pile/invariant)
-			(setf (get name 'mem-stack) 99)
+			(setf (get name 'mem-stack) 100)
 			;stack pointer (sommet de la pile)
-			(setf (get name 'SP) -1)
+			(setf (get name 'SP) 0)
 			
 			;Fin des instructions
 			(setf (get name 'EOF) (+ (get name 'mem-stack) 1) )
@@ -27,11 +26,14 @@
 			(setf (get name 'R1) 0)
 			(setf (get name 'R2) 0)
 			(setf (get name 'R3) 0)
+
+			;Hash-map globale
+			(setf (get name 'GLOBALS) (make-hash-table :size 0) )
 			
 			;frame pointer
-			(setf (get name 'FP) -1)
+			(setf (get name 'FP) 0)
 			
-			;programme pointer (ou compteur ordinal CO)
+			;programme counter (ou compteur ordinal CO)
 			(setf (get name 'PC) 0)
 			
 			;flag de comparaison
@@ -365,15 +367,9 @@
 
 		(jmp-vm vm address)
 		
-		(let ((tmp) (i (get-memory vm 'FP)))
-			(loop while (> i 0) 
-			do
-				(setq tmp (cons (get-memory vm (- (get vm 'FP) i) ) tmp) )
-				(setq i (- i 1) )
-			)
-			(print tmp)
-			(move-vm vm (apply address tmp) 'R0)
-			(rtn-vm vm)
+		(if (nth-value 1 (gethash  address (get vm 'GLOBALS) ) )
+			(jmp-vm vm (gethash  address (get vm 'GLOBALS) ) )
+			(error "Undefined function : ~S" address)
 		)
 
 	)
@@ -402,27 +398,40 @@
 
 ;Chargeur
 
-(defun loader-vm (vm code)
+(defun loader-function (vm code)
 
-	(let ((instr) (tmp code) (LABELS) (FORWARDS))
+	(let ((tmp code) (LABELS) (FORWARDS))
 
 		(setq LABELS (make-hash-table :size 0))
 		(setq FORWARDS (make-hash-table :size 0))
 
+		(let ((first_instr))
+			(setq first_instr (car tmp) )
+			(if (equal (car first_instr) 'LABEL)
+				(if (nth-value 1 (gethash  (car (cdr first_instr)  ) (get vm 'GLOBALS) ) )
+					(error "Function already exist : ~S" (car (cdr first_instr) ) )
+					(progn
+						(setf (gethash (car (cdr first_instr) ) (get vm 'GLOBALS) ) (get vm 'EOF) )
+						(set-memory vm first_instr (get vm 'EOF))
+						(incr vm 'EOF)
+						(setf tmp (cdr tmp))
+					)
+				)
+				(error "First instruction must be the LABEL of the function")
+			)
+		)
+
 		(loop while (not (equal tmp NIL) )  ;Mise en mémoire et résolution des adresses connues
 		do
-			(let (instr)
-				(setq instr (copy-list (car tmp))) ;copie la liste pour éviter les effets de bords
+			(let ((instr))
+				(setq instr (copy-list (car tmp) ) )
+							
 				(if (equal (car instr) 'LABEL)
 				
-					(progn													;THEN
-						(if (nth-value 1 (gethash  (car (cdr instr)  ) LABELS) )
-							(error "Label already exist : ~S" (car (cdr instr) ))
-							(setf (gethash (car (cdr instr) ) LABELS) (get vm 'EOF) )
-						)
-						(if (equal (car (cdr instr ) ) 'MAIN)
-							(move-vm vm 'EOF 'PC)
-						)
+					      													;THEN
+					(if (nth-value 1 (gethash  (car (cdr instr)  ) LABELS) )
+						(error "Label already exist : ~S" (car (cdr instr) ))
+						(setf (gethash (car (cdr instr) ) LABELS) (get vm 'EOF) )
 					)
 					
 					(progn												  ;ELSE
@@ -435,8 +444,7 @@
 								(equal (car instr) 'JGE)
 								(equal (car instr) 'JNE)
 								(equal (car instr) 'JTRUE)
-								(equal (car instr) 'JNIL)
-								(equal (car instr) 'JSR)						
+								(equal (car instr) 'JNIL)					
 							)
 							(if (nth-value 1 (gethash  (car (cdr instr) ) LABELS) )
 								(setf (car (cdr instr) ) (gethash  (car (cdr instr) ) LABELS) )
@@ -445,6 +453,7 @@
 						)					
 					)
 				)
+
 				(set-memory vm instr (get vm 'EOF))
 				(incr vm 'EOF)
 				(setf tmp (cdr tmp))					
@@ -498,7 +507,7 @@
 )
 
 (defun show-instruction-list (vm)
-	(loop for i from (+ 1 (get vm 'mem-stack)) to (- (get vm 'EOF) 1)
+	(loop for i from (+ (get vm 'mem-stack) 1) to (- (get vm 'EOF) 1)
 	do
 		(format t "~S : ~S~%" i (get-memory vm i))
 	)
@@ -559,21 +568,55 @@
 	;)	
 )
 
-(defun exec-vm (vm &optional (show NIL))
-	(if (= (get vm 'PC) 0)
-		(error "no main function")
+(defun vm-apply (vm label param &optional (show NIL))
+	(if (nth-value 1 (gethash label (get vm 'GLOBALS) ) )
 		(progn
+
+			(if (and show (not (equal param NIL) ) )
+				(format t "(VM-APPLY) push des arguments et du nb arguments~%")
+			)
+			(dolist 
+				(x param NIL) 
+				(progn
+					(if show
+						(format t "(MOVE ~S R0)~%(PUSH R0)~%" x)
+					)
+					(move-vm vm x 'R0)
+					(push-vm vm 'R0)
+				)  
+			)
+
+			(if (not (equal param NIL))
+				(progn
+					(if show
+						(format t "(MOVE ~S R0)~%(PUSH R0)~%(JSR ~S)~%---------------------~%" 
+							(list-length param) label )
+					)
+					(move-vm vm (list-length param) 'R0)
+					(push-vm vm 'R0)
+				)
+			)
+
 			(if show
 				(show-instruction-list vm)
 			)
+
+			(move-vm vm 'EOF 'PC)
+			(jsr-vm vm label)
+
 			(loop while (and (< (get vm 'PC) (get vm 'EOF)) (not (get vm 'halt) ) )  ;exécution du code en mémoire
 			do
 				(eval-vm vm (get-memory vm (get vm 'PC)) show)
 				(incr vm 'PC)
 			)
 		)
+		(error "Undefined function : ~S" label)
 	)
 	(get vm 'R0)
+)
+
+(defun exec-vm (vm &optional (show NIL))
+	(vm-apply vm 'MAIN '() show)
 )
 
 ;---------------------------------------------------------------------------------------------------------------
@@ -619,17 +662,6 @@
 		(CMP 0 R2)
 		(JLT BOUCLE)
 		(RTN)
-
-		(LABEL MAIN)
-
-		(MOVE 5 R0)	;Push de l'argument de Factorielle
-		(PUSH R0)	;Push n1
-		(MOVE 1 R0)
-		(PUSH R0)	;Push nb param
-
-		(JSR FACT)
-
-		(LABEL EOF)
 	)
 )
 
@@ -689,7 +721,27 @@
 		(LABEL END_FIBO)
 
 		(RTN)
+	)	
 
+)
+
+(setq MAINFACT
+	'(
+		(LABEL MAIN)
+
+		(MOVE 5 R0)	;Push de l'argument de Factorielle
+		(PUSH R0)	;Push n1
+		(MOVE 1 R0)
+		(PUSH R0)	;Push nb param
+
+		(JSR FACT)
+
+		(LABEL EOF)
+	)
+)
+
+(setq MAINFIBO
+	'(
 		(LABEL MAIN)
 		
 		(MOVE 6 R0)
@@ -700,28 +752,8 @@
 		(JSR FIBO)
 
 		(LABEL EOF)
-	)	
-
-)
-
-(defun fact (x)
-	(if (= x 0)
-		1
-		(* x (fact (- x 1)))
 	)
 )
-
-(setq testJSR 
-	'(
-		(LABEL MAIN)
-		(MOVE 5 R1)
-		(PUSH R1)
-		(MOVE 1 R1)
-		(PUSH R1)
-		(JSR fact)
-	)
-)
-
 
 ;---------------------------------------------------------------------------------------------------------------
 ;		Compilateur
